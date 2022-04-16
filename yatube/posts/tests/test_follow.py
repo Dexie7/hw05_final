@@ -1,53 +1,85 @@
+from django.shortcuts import reverse
 from django.test import Client, TestCase
-from django.urls import reverse
 
-from ..models import Follow, User
+from posts.models import Follow, Group, Post, User
+
+SLUG = 'test-slug'
+USERNAME = 'user_test'
+AUTHOR_USERNAME = 'author_name'
+FOLLOW_URL = reverse('posts:follow_index')
+PROFILE_FOLLOW_URL = reverse('posts:profile_follow', args=[AUTHOR_USERNAME])
+PROFILE_UNFOLLOW_URL = reverse(
+    'posts:profile_unfollow',
+    args=[AUTHOR_USERNAME]
+)
 
 
-class FollowTest(TestCase):
-    def setUp(self):
-        self.guest_client = Client()
-        self.user = User.objects.create_user(username='Mike')
-        self.user_two = User.objects.create_user(username='vica')
-        self.authorized_client = Client()
-        self.authorized_client_two = Client()
-        self.authorized_client.force_login(self.user)
-        self.authorized_client_two.force_login(self.user_two)
+class PagesTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = User.objects.create(username=USERNAME)
+        cls.user_author = User.objects.create(username=AUTHOR_USERNAME)
+        cls.group = Group.objects.create(
+            title='Тестовое название',
+            slug=SLUG,
+            description='Тестовое описание',
+        )
+        cls.post = Post.objects.create(
+            text='Тестовый текст поста',
+            author=cls.user_author,
+            group=cls.group,
+        )
+        cls.guest = Client()
+        cls.author = Client()
+        cls.author.force_login(cls.user)
 
-    def test_following_author(self):
+    def test_post_with_group_not_appear_at_wrong_follower_page(self):
+        """"Новая запись пользователя не появляется в ленте тех,
+        кто не подписан на него.
+        """
+        self.assertFalse(
+            Follow.objects.filter(
+                user=self.user.id,
+                author=self.post.author.id
+            ).exists()
+        )
+        response = self.author.get(FOLLOW_URL)
+        self.assertNotIn(
+            self.post,
+            response.context['page_obj']
+        )
 
-        """Новая запись пользователя не появляется в ленте тех,
-        кто не подписан на него."""
+    def test_authorized_user_can_follow_author(self):
+        """Авторизованный пользователь может подписываться
+        на других пользователей.
+        """
+        self.assertFalse(
+            Follow.objects.filter(
+                user=self.user.id,
+                author=self.post.author.id
+            ).exists()
+        )
+        self.author.get(PROFILE_FOLLOW_URL)
+        self.assertTrue(
+            Follow.objects.filter(
+                user=self.user.id,
+                author=self.post.author.id
+            ).exists()
+        )
 
-        response = self.authorized_client.get(reverse('posts:follow_index'))
-        self.assertEqual(len(response.context['page_obj']), 0)
-
-    def test_authorized_can_unfollow(self):
-
-        """Авторизованный пользователь может отписываться от других
-         пользователей."""
-
-        count_follow = Follow.objects.all().count()
-        self.authorized_client_two.get(reverse("posts:profile_follow",
-                                       kwargs={
-                                               "username": self.user
-                                               }))
-        self.assertEqual(Follow.objects.all().count(), count_follow + 1)
-        self.authorized_client_two.get(reverse("posts:profile_unfollow",
-                                       kwargs={
-                                               "username": self.user
-                                               }))
-        self.assertEqual(Follow.objects.all().count(), count_follow)
-
-    def test_follow(self):
-        '''Проверяем, что авторизованный пользователь
-        может подписываться на пользователей'''
-        # получаем кол-во записей в подписках
-        count_follow = Follow.objects.all().count()
-        # подписываемся на автора
-        self.authorized_client_two.get(reverse("posts:profile_follow",
-                                       kwargs={
-                                               "username": self.user
-                                               }))
-        # проверяем кол-во записей в подписках
-        self.assertEqual(Follow.objects.all().count(), count_follow + 1)
+    def test_authorized_user_can_unfollow_author(self):
+        """Авторизованный пользователь может удалять
+        из подписок других пользователей.
+        """
+        Follow.objects.create(
+            user=self.user,
+            author=self.post.author
+        )
+        self.author.get(PROFILE_UNFOLLOW_URL)
+        self.assertFalse(
+            Follow.objects.filter(
+                user=self.user.id,
+                author=self.post.author.id
+            ).exists()
+        )

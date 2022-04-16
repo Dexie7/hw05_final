@@ -21,7 +21,7 @@
           <img class="card-img my-2" src="{{ im.url }}">
         {% endthumbnail %}
         <p>{{ post.text|linebreaksbr}}</p>
-        {% if request.user == post.author %}
+        {% if user == post.author %}
           <a href="{% url 'posts:post_edit' post_id=post.pk %}">
              Редактировать запись</a><br>
         {% endif %}

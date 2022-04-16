@@ -20,7 +20,10 @@ class Post(models.Model):
         'Текст поста',
         help_text='Введите текст поста'
     )
-    pub_date = models.DateTimeField(auto_now_add=True)
+    pub_date = models.DateTimeField(
+        'Дата публикации',
+        auto_now_add=True
+    )
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -52,20 +55,35 @@ class Post(models.Model):
 
 
 class Comment(models.Model):
-    post = models.ForeignKey(Post, on_delete=models.CASCADE,
-                             related_name='comments')
-    author = models.ForeignKey(User, on_delete=models.CASCADE,
-                               related_name='comments')
-
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        verbose_name='Пост',
+        related_name='comments'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='Автор',
+        related_name='comments'
+    )
     text = models.TextField(
+        'Текст комментария',
         help_text='Здесь текст комментария'
     )
-
-    created = models.DateTimeField(auto_now_add=True)
-    active = models.BooleanField(default=False)
+    created = models.DateTimeField(
+        'Создан',
+        auto_now_add=True
+    )
+    active = models.BooleanField(
+        'Активен',
+        default=False
+    )
 
     class Meta:
         ordering = ['created']
+        verbose_name = 'Коммент'
+        verbose_name_plural = 'Комменты'
 
     def __str__(self) -> str:
         return self.text
@@ -86,8 +104,8 @@ class Follow(models.Model):
     )
 
     class Meta:
-        verbose_name = 'Фалловер'
-        verbose_name_plural = 'Фалловеры'
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
         UniqueConstraint(
             fields=['user', 'author'],
             name='uniq_follow_following'

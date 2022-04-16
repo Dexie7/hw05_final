@@ -16,9 +16,3 @@ class CommentForm(forms.ModelForm):
         model = Comment
         text = forms.CharField(required=True)
         fields = ('text',)
-
-    def clean_text(self):
-        text = self.cleaned_data['text']
-        if len(text) > 1:
-            return text
-        raise forms.ValidationError("Не заполнен текст комментария!")

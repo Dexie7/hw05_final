@@ -13,6 +13,8 @@ GROUP_TITLE = 'Тестовый заголовок'
 GROUP_SLUG = 'test-slug'
 GROUP_DESCRIPTION = 'Описание тестовой группы'
 NEW_URL = reverse('posts:post_create')
+LOGIN_URL = f'{reverse("login")}?next='
+REDIRECT_ADDRESS = reverse('users:login')
 PROFILE_URL = reverse('posts:profile', args=[AUTHOR])
 SMALL_GIF = (
     b'\x47\x49\x46\x38\x39\x61\x02\x00'
@@ -60,13 +62,14 @@ class PostFormTests(TestCase):
                                kwargs={'post_id': cls.post.id})
         cls.POST_URL = reverse('posts:post_detail',
                                kwargs={'post_id': cls.post.id})
-
-    def setUp(self):
-        self.author = Client()
-        self.author.force_login(self.user)
-        self.unauthor = Client()
+        cls.COMMENT_URL = reverse('posts:add_comment',
+                                  kwargs={'post_id': cls.post.id})
+        cls.author = Client()
+        cls.author.force_login(cls.user)
+        cls.unauthor = Client()
 
     def test_creat_new_post(self):
+        """Валидная форма создает запись в Post."""
         posts = set(Post.objects.all())
         form_data = {
             'text': 'test_text',
@@ -89,6 +92,7 @@ class PostFormTests(TestCase):
             post.image.name, 'posts/' + form_data['image'].name)
 
     def test_change_post(self):
+        """Валидная форма создает запись в Post."""
         new_group = Group.objects.create()
         form_data = {
             'text': 'new_text',
@@ -106,46 +110,56 @@ class PostFormTests(TestCase):
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.author, self.post.author)
 
-    def test_form_add_comment(self):
+    def test_anonymous_can_not_create_post(self):
+        """Аноним не может создавать посты."""
+        posts_count = Post.objects.count()
         form_data = {
-            'text': 'Добавленный тестовый коммент',
-            'author': self.user
+            'text': 'Пост, который не создастся',
         }
-        url = reverse(
-            'posts:add_comment',
-            kwargs={'post_id': self.post.id})
-
-        response = self.author.post(
-            url,
+        response = self.unauthor.post(
+            NEW_URL,
             data=form_data,
             follow=True
         )
+        self.assertFalse(
+            Post.objects.filter(
+                text=form_data['text']
+            ).exists()
+        )
+        self.assertEqual(
+            Post.objects.count(),
+            posts_count
+        )
+        self.assertRedirects(response, LOGIN_URL + NEW_URL)
 
-        self.assertRedirects(response, reverse(
-            'posts:post_detail', kwargs={'post_id': self.post.id}))
-
+    def test_form_add_comment(self):
+        """Авторизированный пользователь может
+        комментировать посты."""
+        form_data = {
+            'text': 'Добавленный тестовый коммент'
+        }
+        response = self.author.post(
+            self.COMMENT_URL,
+            data=form_data,
+            follow=True
+        )
+        self.assertRedirects(response, self.POST_URL)
         comment = response.context['comments'].first()
         self.assertEqual(
-            comment.text, form_data['text'], 'Неверный текст у комментария')
+            comment.text, form_data['text'])
         self.assertEqual(
             comment.author,
-            self.user,
-            'Неверный автор у комментария')
+            self.user)
 
     def test_unauthorized_client_create_comment(self):
+        """Аноним не может комментировать посты."""
         form_data = {
             'text': 'Добавленный тестовый коммент',
-            'author': self.user
         }
-        url = reverse(
-            'posts:add_comment',
-            kwargs={'post_id': self.post.id})
-
         response = self.unauthor.post(
-            url,
+            self.COMMENT_URL,
             data=form_data,
             follow=True
         )
-        redirect_address = reverse('users:login')
         self.assertRedirects(
-            response, f'{redirect_address}?next={url}')
+            response, f'{REDIRECT_ADDRESS}?next={self.COMMENT_URL}')

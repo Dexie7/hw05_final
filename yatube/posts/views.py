@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.contrib.auth.models import User
-from django.shortcuts import redirect, render, get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 
 from . models import Follow, Group, Post, User
@@ -44,13 +44,11 @@ def profile(request, username):
 def post_detail(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST or None)
-    comments = post.comments.all()
-    count_of_posts = post.author.posts.all().count()
     return render(request, 'posts/post_detail.html', {
-        'count_of_posts': count_of_posts,
+        'count_of_posts': post.author.posts.all().count(),
         'post': post,
         'form': form,
-        'comments': comments,
+        'comments': post.comments.all(),
     })
 
 
@@ -101,13 +99,9 @@ def add_comment(request, post_id):
 @login_required
 def follow_index(request):
     follow_post = Post.objects.filter(author__following__user=request.user)
-    paginator = Paginator(follow_post, settings.MAX_PAGE_COUNT)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    context = {
-        'page_obj': page_obj,
-    }
-    return render(request, 'posts/follow.html', context)
+    return render(request, 'posts/follow.html', {
+        'page_obj': page_paginator(request, follow_post),
+    })
 
 
 @login_required
@@ -120,8 +114,7 @@ def profile_follow(request, username):
 
 @login_required
 def profile_unfollow(request, username):
-    follow_author = get_object_or_404(User, username=username)
-    unfollow = Follow.objects.get(user=request.user, author=follow_author)
+    unfollow = get_object_or_404(Follow, user=request.user, author__username=username)
     if unfollow is not None:
         unfollow.delete()
     return redirect('posts:profile', username=username)
